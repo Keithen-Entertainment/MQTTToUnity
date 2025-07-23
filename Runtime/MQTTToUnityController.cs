@@ -8,20 +8,25 @@ using uPLibrary.Networking.M2Mqtt.Messages;
 public class MQTTToUnityController : M2MqttUnityClient
 {
     [Header("MQTT Configuration")]
-    [Tooltip("The main topic(key) to listen for")]
-    public string MQTTKey;
-    public string[] MQTTTopics;
+    [Tooltip("Map of MQTT keys (prefixes) to their specific topics")]
+    public List<KeyTopicsPair> MQTTKeyTopics = new List<KeyTopicsPair>();
 
     // Event for received MQTT messages (all topics)
     public event Action<string, string> OnMqttMessageReceived;
 
-    // Per-topic events
+    // Per-topic events (full topic as key)
     private Dictionary<string, Action<string>> topicEvents = new Dictionary<string, Action<string>>();
 
-    // Subscribe to a specific topic event
-    public void SubscribeToTopicEvent(string topic, Action<string> handler)
+    [Serializable]
+    public class KeyTopicsPair
     {
-        string fullTopic = $"{MQTTKey}/{topic}";
+        public string Key;
+        public string[] Topics;
+    }
+
+    // Subscribe to a specific topic event (full topic, e.g., "key/topic")
+    public void SubscribeToTopicEvent(string fullTopic, Action<string> handler)
+    {
         if (!topicEvents.ContainsKey(fullTopic))
         {
             topicEvents[fullTopic] = null;
@@ -29,24 +34,20 @@ public class MQTTToUnityController : M2MqttUnityClient
         topicEvents[fullTopic] += handler;
     }
 
-    // Unsubscribe from a specific topic event
-    public void UnsubscribeFromTopicEvent(string topic, Action<string> handler)
+    public void UnsubscribeFromTopicEvent(string fullTopic, Action<string> handler)
     {
-        string fullTopic = $"{MQTTKey}/{topic}";
         if (topicEvents.ContainsKey(fullTopic))
         {
             topicEvents[fullTopic] -= handler;
         }
     }
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     protected override void Start()
     {
         client = new MqttClient(brokerAddress, brokerPort, isEncrypted, null, null, isEncrypted ? MqttSslProtocols.SSLv3 : MqttSslProtocols.None);
         base.Start();
     }
 
-    // Update is called once per frame
     protected override void Update()
     {
         base.Update();
@@ -54,42 +55,52 @@ public class MQTTToUnityController : M2MqttUnityClient
 
     protected override void SubscribeTopics()
     {
-        if (MQTTTopics == null || MQTTTopics.Length == 0)
+        var fullTopics = new List<string>();
+        var qosLevels = new List<byte>();
+
+        foreach (var pair in MQTTKeyTopics)
         {
-            Debug.LogWarning("[MQTT] No topics to subscribe to.");
+            if (pair.Key == null || pair.Topics == null) continue;
+            foreach (var topic in pair.Topics)
+            {
+                string fullTopic = $"{pair.Key}/{topic}";
+                fullTopics.Add(fullTopic);
+                qosLevels.Add(MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE);
+            }
+        }
+
+        if (fullTopics.Count == 0)
+        {
+            Debug.LogWarning("[MQTT] No keys or topics to subscribe to.");
             return;
         }
 
-        // Add MQTTKey as prefix to each topic
-        string[] prefixedTopics = new string[MQTTTopics.Length];
-        byte[] qosLevels = new byte[MQTTTopics.Length];
-        for (int i = 0; i < MQTTTopics.Length; i++)
-        {
-            prefixedTopics[i] = $"{MQTTKey}/{MQTTTopics[i]}";
-            qosLevels[i] = MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE; // or your desired QoS
-        }
-
-        client.Subscribe(prefixedTopics, qosLevels);
-        Debug.Log($"[MQTT] Subscribed to topics: {string.Join(", ", prefixedTopics)}");
+        client.Subscribe(fullTopics.ToArray(), qosLevels.ToArray());
+        Debug.Log($"[MQTT] Subscribed to topics: {string.Join(", ", fullTopics)}");
     }
 
     protected override void UnsubscribeTopics()
     {
-        if (MQTTTopics == null || MQTTTopics.Length == 0)
+        var fullTopics = new List<string>();
+
+        foreach (var pair in MQTTKeyTopics)
         {
-            Debug.LogWarning("[MQTT] No topics to unsubscribe from.");
+            if (pair.Key == null || pair.Topics == null) continue;
+            foreach (var topic in pair.Topics)
+            {
+                string fullTopic = $"{pair.Key}/{topic}";
+                fullTopics.Add(fullTopic);
+            }
+        }
+
+        if (fullTopics.Count == 0)
+        {
+            Debug.LogWarning("[MQTT] No keys or topics to unsubscribe from.");
             return;
         }
 
-        // Add MQTTKey as prefix to each topic
-        string[] prefixedTopics = new string[MQTTTopics.Length];
-        for (int i = 0; i < MQTTTopics.Length; i++)
-        {
-            prefixedTopics[i] = $"{MQTTKey}/{MQTTTopics[i]}";
-        }
-
-        client.Unsubscribe(prefixedTopics);
-        Debug.Log($"[MQTT] Unsubscribed from topics: {string.Join(", ", prefixedTopics)}");
+        client.Unsubscribe(fullTopics.ToArray());
+        Debug.Log($"[MQTT] Unsubscribed from topics: {string.Join(", ", fullTopics)}");
     }
 
     protected override void OnConnected()
@@ -120,7 +131,6 @@ public class MQTTToUnityController : M2MqttUnityClient
         }
     }
 
-    // --- Add this method to publish messages ---
     public void PublishMessage(string topic, string message, byte qosLevel = MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE, bool retain = false)
     {
         if (client != null && client.IsConnected)
@@ -137,10 +147,5 @@ public class MQTTToUnityController : M2MqttUnityClient
         {
             Debug.LogWarning("[MQTT] Cannot publish: client not connected.");
         }
-    }
-    public void SendPuzzelFinished()
-    {
-        Debug.Log("[MQTT] Send finished message to MQTT broker");
-        this.PublishMessage(MQTTKey + "/finished", "finished");
     }
 }
