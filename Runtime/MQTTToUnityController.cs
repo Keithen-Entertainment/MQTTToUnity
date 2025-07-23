@@ -1,18 +1,48 @@
 using M2MqttUnity;
-using UnityEngine;
-using uPLibrary.Networking.M2Mqtt.Messages;
 using System;
+using System.Collections.Generic;
+using UnityEngine;
+using uPLibrary.Networking.M2Mqtt;
+using uPLibrary.Networking.M2Mqtt.Messages;
 
 public class MQTTToUnityController : M2MqttUnityClient
 {
-    public string MQTTTopic;
+    [Header("MQTT Configuration")]
+    [Tooltip("The main topic(key) to listen for")]
+    public string MQTTKey;
+    public string[] MQTTTopics;
 
-    // Event for received MQTT messages
+    // Event for received MQTT messages (all topics)
     public event Action<string, string> OnMqttMessageReceived;
+
+    // Per-topic events
+    private Dictionary<string, Action<string>> topicEvents = new Dictionary<string, Action<string>>();
+
+    // Subscribe to a specific topic event
+    public void SubscribeToTopicEvent(string topic, Action<string> handler)
+    {
+        string fullTopic = $"{MQTTKey}/{topic}";
+        if (!topicEvents.ContainsKey(fullTopic))
+        {
+            topicEvents[fullTopic] = null;
+        }
+        topicEvents[fullTopic] += handler;
+    }
+
+    // Unsubscribe from a specific topic event
+    public void UnsubscribeFromTopicEvent(string topic, Action<string> handler)
+    {
+        string fullTopic = $"{MQTTKey}/{topic}";
+        if (topicEvents.ContainsKey(fullTopic))
+        {
+            topicEvents[fullTopic] -= handler;
+        }
+    }
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     protected override void Start()
     {
+        client = new MqttClient(brokerAddress, brokerPort, isEncrypted, null, null, isEncrypted ? MqttSslProtocols.SSLv3 : MqttSslProtocols.None);
         base.Start();
     }
 
@@ -24,14 +54,44 @@ public class MQTTToUnityController : M2MqttUnityClient
 
     protected override void SubscribeTopics()
     {
-        client.Subscribe(new string[] { MQTTTopic }, new byte[] { MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE });
-        Debug.Log($"[MQTT] Subscribed to topic: {MQTTTopic}");
+        if (MQTTTopics == null || MQTTTopics.Length == 0)
+        {
+            Debug.LogWarning("[MQTT] No topics to subscribe to.");
+            return;
+        }
+
+        // Add MQTTKey as prefix to each topic
+        string[] prefixedTopics = new string[MQTTTopics.Length];
+        byte[] qosLevels = new byte[MQTTTopics.Length];
+        for (int i = 0; i < MQTTTopics.Length; i++)
+        {
+            prefixedTopics[i] = $"{MQTTKey}/{MQTTTopics[i]}";
+            qosLevels[i] = MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE; // or your desired QoS
+        }
+
+        client.Subscribe(prefixedTopics, qosLevels);
+        Debug.Log($"[MQTT] Subscribed to topics: {string.Join(", ", prefixedTopics)}");
     }
+
     protected override void UnsubscribeTopics()
     {
-        client.Unsubscribe(new string[] { MQTTTopic });
-        Debug.Log($"[MQTT] Unsubscribed from topic: {MQTTTopic}");
+        if (MQTTTopics == null || MQTTTopics.Length == 0)
+        {
+            Debug.LogWarning("[MQTT] No topics to unsubscribe from.");
+            return;
+        }
+
+        // Add MQTTKey as prefix to each topic
+        string[] prefixedTopics = new string[MQTTTopics.Length];
+        for (int i = 0; i < MQTTTopics.Length; i++)
+        {
+            prefixedTopics[i] = $"{MQTTKey}/{MQTTTopics[i]}";
+        }
+
+        client.Unsubscribe(prefixedTopics);
+        Debug.Log($"[MQTT] Unsubscribed from topics: {string.Join(", ", prefixedTopics)}");
     }
+
     protected override void OnConnected()
     {
         Debug.Log("[MQTT] Connected to MQTT broker.");
@@ -49,8 +109,15 @@ public class MQTTToUnityController : M2MqttUnityClient
     {
         string messageString = System.Text.Encoding.UTF8.GetString(message);
         Debug.Log($"[MQTT] Received message on topic '{topic}': {messageString}");
-        // Fire the event
+
+        // Fire the global event
         OnMqttMessageReceived?.Invoke(topic, messageString);
+
+        // Fire the per-topic event if it exists
+        if (topicEvents.TryGetValue(topic, out var handler) && handler != null)
+        {
+            handler.Invoke(messageString);
+        }
     }
 
     // --- Add this method to publish messages ---
@@ -70,5 +137,10 @@ public class MQTTToUnityController : M2MqttUnityClient
         {
             Debug.LogWarning("[MQTT] Cannot publish: client not connected.");
         }
+    }
+    public void SendPuzzelFinished()
+    {
+        Debug.Log("[MQTT] Send finished message to MQTT broker");
+        this.PublishMessage(MQTTKey + "/finished", "finished");
     }
 }
