@@ -133,19 +133,32 @@ public class MQTTToUnityController : M2MqttUnityClient
 
     public void PublishMessage(string topic, string message, byte qosLevel = MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE, bool retain = false)
     {
-        if (client != null && client.IsConnected)
+        StartCoroutine(PublishWithRetry(topic, message, qosLevel, retain));
+    }
+
+    private System.Collections.IEnumerator PublishWithRetry(string topic, string message, byte qosLevel, bool retain, int maxRetries = 5, float retryDelay = 1f)
+    {
+        int attempt = 0;
+        while (attempt < maxRetries)
         {
-            ushort msgId = client.Publish(
-                topic,
-                System.Text.Encoding.UTF8.GetBytes(message),
-                qosLevel,
-                retain
-            );
-            Debug.Log($"[MQTT] Published message to topic '{topic}': {message} (msgId: {msgId})");
+            if (client != null && client.IsConnected)
+            {
+                ushort msgId = client.Publish(
+                    topic,
+                    System.Text.Encoding.UTF8.GetBytes(message),
+                    qosLevel,
+                    retain
+                );
+                Debug.Log($"[MQTT] Published message to topic '{topic}': {message} (msgId: {msgId})");
+                yield break;
+            }
+            else
+            {
+                Debug.LogWarning($"[MQTT] Publish attempt {attempt + 1} failed: client not connected. Retrying in {retryDelay} seconds...");
+                yield return new WaitForSeconds(retryDelay);
+                attempt++;
+            }
         }
-        else
-        {
-            Debug.LogWarning("[MQTT] Cannot publish: client not connected.");
-        }
+        Debug.LogError($"[MQTT] Failed to publish message to topic '{topic}' after {maxRetries} attempts: client not connected.");
     }
 }
