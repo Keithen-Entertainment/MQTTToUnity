@@ -10,7 +10,7 @@ public class MQTTToUnityController : M2MqttUnityClient
     [Header("MQTT Configuration")]
     [Tooltip("Map of MQTT keys (prefixes) to their specific topics")]
     public List<KeyTopicsPair> MQTTKeyTopics = new List<KeyTopicsPair>();
-
+    public bool DebuggingEnabled = false;
     // Event for received MQTT messages (all topics)
     public event Action<string, string> OnMqttMessageReceived;
 
@@ -71,7 +71,8 @@ public class MQTTToUnityController : M2MqttUnityClient
 
         if (fullTopics.Count == 0)
         {
-            Debug.LogWarning("[MQTT] No keys or topics to subscribe to.");
+            if (DebuggingEnabled)
+                Debug.LogWarning("[MQTT] No keys or topics to subscribe to.");
             return;
         }
 
@@ -95,31 +96,37 @@ public class MQTTToUnityController : M2MqttUnityClient
 
         if (fullTopics.Count == 0)
         {
-            Debug.LogWarning("[MQTT] No keys or topics to unsubscribe from.");
+            if (DebuggingEnabled)
+                Debug.LogWarning("[MQTT] No keys or topics to unsubscribe from.");
             return;
         }
 
         client.Unsubscribe(fullTopics.ToArray());
-        Debug.Log($"[MQTT] Unsubscribed from topics: {string.Join(", ", fullTopics)}");
+        if (DebuggingEnabled)
+            Debug.Log($"[MQTT] Unsubscribed from topics: {string.Join(", ", fullTopics)}");
     }
 
     protected override void OnConnected()
     {
-        Debug.Log("[MQTT] Connected to MQTT broker.");
+        if (DebuggingEnabled)
+            Debug.Log("[MQTT] Connected to MQTT broker.");
         this.SubscribeTopics();
     }
     protected override void OnDisconnected()
     {
-        Debug.Log("[MQTT] Disconnected from MQTT broker.");
+        if (DebuggingEnabled)
+            Debug.Log("[MQTT] Disconnected from MQTT broker.");
     }
     protected override void OnConnectionFailed(string errorMessage)
     {
-        Debug.LogError($"[MQTT] Connection failed: {errorMessage}");
+        if (DebuggingEnabled)
+            Debug.LogError($"[MQTT] Connection failed: {errorMessage}");
     }
     protected override void DecodeMessage(string topic, byte[] message)
     {
         string messageString = System.Text.Encoding.UTF8.GetString(message);
-        Debug.Log($"[MQTT] Received message on topic '{topic}': {messageString}");
+        if (DebuggingEnabled)
+            Debug.Log($"[MQTT] Received message on topic '{topic}': {messageString}");
 
         // Fire the global event
         OnMqttMessageReceived?.Invoke(topic, messageString);
@@ -149,16 +156,19 @@ public class MQTTToUnityController : M2MqttUnityClient
                     qosLevel,
                     retain
                 );
-                Debug.Log($"[MQTT] Published message to topic '{topic}': {message} (msgId: {msgId})");
+                if (DebuggingEnabled)
+                    Debug.Log($"[MQTT] Published message to topic '{topic}': {message} (msgId: {msgId})");
                 yield break;
             }
             else
             {
-                Debug.LogWarning($"[MQTT] Publish attempt {attempt + 1} failed: client not connected. Retrying in {retryDelay} seconds...");
+                if (DebuggingEnabled)
+                    Debug.LogWarning($"[MQTT] Publish attempt {attempt + 1} failed: client not connected. Retrying in {retryDelay} seconds...");
                 yield return new WaitForSeconds(retryDelay);
                 attempt++;
             }
         }
-        Debug.LogError($"[MQTT] Failed to publish message to topic '{topic}' after {maxRetries} attempts: client not connected.");
+        if (DebuggingEnabled)
+            Debug.LogError($"[MQTT] Failed to publish message to topic '{topic}' after {maxRetries} attempts: client not connected.");
     }
 }
