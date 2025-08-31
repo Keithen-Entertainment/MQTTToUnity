@@ -11,6 +11,7 @@ public class MQTTToUnityController : M2MqttUnityClient
     [Tooltip("Map of MQTT keys (prefixes) to their specific topics")]
     public List<KeyTopicsPair> MQTTKeyTopics = new List<KeyTopicsPair>();
     public bool DebuggingEnabled = false;
+    public bool ShowMQTTMessages = false;
     // Event for received MQTT messages (all topics)
     public event Action<string, string> OnMqttMessageReceived;
 
@@ -71,13 +72,14 @@ public class MQTTToUnityController : M2MqttUnityClient
 
         if (fullTopics.Count == 0)
         {
-            if (DebuggingEnabled)
-                Debug.LogWarning("[MQTT] No keys or topics to subscribe to.");
-            return;
+            Debug.LogWarning("[MQTT] No keys or topics to subscribe to.");
         }
 
         client.Subscribe(fullTopics.ToArray(), qosLevels.ToArray());
-        Debug.Log($"[MQTT] Subscribed to topics: {string.Join(", ", fullTopics)}");
+        if (ShowMQTTMessages)
+        {
+            Debug.Log($"[MQTT] Subscribed to topics: {string.Join(", ", fullTopics)}");
+        }
     }
 
     protected override void UnsubscribeTopics()
@@ -102,30 +104,28 @@ public class MQTTToUnityController : M2MqttUnityClient
         }
 
         client.Unsubscribe(fullTopics.ToArray());
-        if (DebuggingEnabled)
+        if (ShowMQTTMessages)
             Debug.Log($"[MQTT] Unsubscribed from topics: {string.Join(", ", fullTopics)}");
     }
 
     protected override void OnConnected()
     {
-        if (DebuggingEnabled)
+        if (ShowMQTTMessages)
             Debug.Log("[MQTT] Connected to MQTT broker.");
         this.SubscribeTopics();
     }
     protected override void OnDisconnected()
     {
-        if (DebuggingEnabled)
-            Debug.Log("[MQTT] Disconnected from MQTT broker.");
+        Debug.Log("[MQTT] Disconnected from MQTT broker.");
     }
     protected override void OnConnectionFailed(string errorMessage)
     {
-        if (DebuggingEnabled)
-            Debug.LogError($"[MQTT] Connection failed: {errorMessage}");
+        Debug.LogError($"[MQTT] Connection failed: {errorMessage}");
     }
     protected override void DecodeMessage(string topic, byte[] message)
     {
         string messageString = System.Text.Encoding.UTF8.GetString(message);
-        if (DebuggingEnabled)
+        if (ShowMQTTMessages)
             Debug.Log($"[MQTT] Received message on topic '{topic}': {messageString}");
 
         // Fire the global event
@@ -156,7 +156,7 @@ public class MQTTToUnityController : M2MqttUnityClient
                     qosLevel,
                     retain
                 );
-                if (DebuggingEnabled)
+                if (ShowMQTTMessages)
                     Debug.Log($"[MQTT] Published message to topic '{topic}': {message} (msgId: {msgId})");
                 yield break;
             }
