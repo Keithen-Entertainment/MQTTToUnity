@@ -1,6 +1,6 @@
 {
   "name": "com.keithen.mqtttounity",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "displayName": "MQTT To Unity",
   "description": "A Unity plugin for MQTT communication.",
   "unity": "2020.3",

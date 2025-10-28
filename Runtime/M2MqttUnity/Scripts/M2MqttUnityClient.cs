@@ -53,7 +53,7 @@ namespace M2MqttUnity
         [Tooltip("Connection timeout in milliseconds")]
         public int timeoutOnConnection = MqttSettings.MQTT_CONNECT_TIMEOUT;
         [Tooltip("Connect on startup")]
-        public bool autoConnect = false;
+        public bool autoConnect = true;
         [Tooltip("UserName for the MQTT broker. Keep blank if no user name is required.")]
         public string mqttUserName = null;
         [Tooltip("Password for the MQTT broker. Keep blank if no password is required.")]
@@ -107,7 +107,7 @@ namespace M2MqttUnity
         /// </summary>
         protected virtual void OnConnecting()
         {
-            Debug.LogFormat("Connecting to broker on {0}:{1}...\n", brokerAddress, brokerPort.ToString());
+            //Debug.LogFormat("Connecting to broker on {0}:{1}...\n", brokerAddress, brokerPort.ToString());
         }
 
         /// <summary>
@@ -115,7 +115,7 @@ namespace M2MqttUnity
         /// </summary>
         protected virtual void OnConnected()
         {
-            Debug.LogFormat("Connected to {0}:{1}...\n", brokerAddress, brokerPort.ToString());
+            //Debug.LogFormat("Connected to {0}:{1}...\n", brokerAddress, brokerPort.ToString());
 
             SubscribeTopics();
 
