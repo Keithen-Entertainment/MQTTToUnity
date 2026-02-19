@@ -43,10 +43,16 @@ public class WaypointBrothers : MonoBehaviour
                 lookPosition.y = transform.position.y;
                 transform.LookAt(lookPosition);
             }
-        }        
+        }
+    }
+
+    void OnCollisionEnter(Collision collision)
+    {
+        Debug.Log("Botsing met: " + collision.gameObject.name);
+        animator.SetTrigger("Talking");
     }
 }
 
 
 //animator.SetBool("NextAnimation", true);
-//zodat de volgende animatie wordt getriggerd wanneer broer bij waypoint is.
+//zodat de volgende animatie wordt getriggerd wanneer broer bij waypoint is. rigidbody? Collider?
